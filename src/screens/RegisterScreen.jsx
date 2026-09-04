@@ -1,0 +1,171 @@
+import React from 'react';
+import {
+  SafeAreaView,
+  KeyboardAvoidingView,
+  ScrollView,
+  View,
+  Text,
+  TouchableOpacity,
+  Platform,
+} from 'react-native';
+import { useRegisterForm } from '../hooks/useRegisterForm';
+import { HeaderRegisterLogo } from '../components/HeaderRegisterLogo';
+import { Input } from '../components/Input';
+import { Button } from '../components/Button';
+import { Divider } from '../components/Divider';
+import { SocialButton } from '../components/SocialButton';
+import { loginStyles } from '../styles/loginStyles';
+
+export const RegisterScreen = () => {
+  const {
+    fullName,
+    setFullName,
+    phone,
+    setPhone,
+    email,
+    setEmail,
+    password,
+    setPassword,
+    confirmPassword,
+    setConfirmPassword,
+    showPassword,
+    toggleShowPassword,
+    loading,
+    errors,
+    focusedInput,
+    setFocusedInput,
+    handleRegister,
+    handleSocialRegister,
+    handleGoToLogin,
+  } = useRegisterForm();
+
+  return (
+    <SafeAreaView style={loginStyles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={loginStyles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={loginStyles.card}>
+            {/* Header: Back Arrow, Title, Squircle Shield Icon, Brand Name & Tagline */}
+            <HeaderRegisterLogo onBackPress={handleGoToLogin} />
+
+            {/* Registration Form */}
+            <View style={loginStyles.form}>
+              {/* Full Name Input */}
+              <Input
+                label="Nombre Completo"
+                value={fullName}
+                onChangeText={setFullName}
+                placeholder="Juan Pérez"
+                leftIconName="person-outline"
+                autoCapitalize="words"
+                isFocused={focusedInput === 'fullName'}
+                onFocus={() => setFocusedInput('fullName')}
+                onBlur={() => setFocusedInput(null)}
+                error={errors.fullName}
+              />
+
+              {/* Email Input */}
+              <Input
+                label="Correo Electrónico"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="usuario@trustphone.com"
+                leftIconName="mail-outline"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                isFocused={focusedInput === 'email'}
+                onFocus={() => setFocusedInput('email')}
+                onBlur={() => setFocusedInput(null)}
+                error={errors.email}
+              />
+
+              {/* Phone Input */}
+              <Input
+                label="Teléfono"
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="+504 9876-5432"
+                leftIconName="call-outline"
+                keyboardType="phone-pad"
+                isFocused={focusedInput === 'phone'}
+                onFocus={() => setFocusedInput('phone')}
+                onBlur={() => setFocusedInput(null)}
+              />
+
+              {/* Password Input */}
+              <Input
+                label="Contraseña"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                secureTextEntry={!showPassword}
+                leftIconName="lock-closed-outline"
+                showRightIcon={true}
+                rightIconName={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                onPressRightIcon={toggleShowPassword}
+                isFocused={focusedInput === 'password'}
+                onFocus={() => setFocusedInput('password')}
+                onBlur={() => setFocusedInput(null)}
+                error={errors.password}
+              />
+
+              {/* Confirm Password Input */}
+              <Input
+                label="Confirmar Contraseña"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="••••••••"
+                secureTextEntry={!showPassword}
+                leftIconName="lock-closed-outline"
+                isFocused={focusedInput === 'confirmPassword'}
+                onFocus={() => setFocusedInput('confirmPassword')}
+                onBlur={() => setFocusedInput(null)}
+                error={errors.confirmPassword}
+              />
+
+              {/* Primary Register Button */}
+              <Button
+                title="Registrarse"
+                onPress={handleRegister}
+                loading={loading}
+              />
+            </View>
+
+            {/* Divider */}
+            <Divider text="O REGÍSTRATE CON" />
+
+            {/* Social Logins: Google & Apple */}
+            <View style={loginStyles.socialRow}>
+              <SocialButton
+                title="Google"
+                provider="google"
+                onPress={() => handleSocialRegister('Google')}
+              />
+              <SocialButton
+                title="Apple"
+                provider="apple"
+                onPress={() => handleSocialRegister('Apple')}
+              />
+            </View>
+
+            {/* Footer Login Link */}
+            <View style={loginStyles.footerRow}>
+              <Text style={loginStyles.footerText}>¿Ya tienes una cuenta? </Text>
+              <TouchableOpacity onPress={handleGoToLogin} activeOpacity={0.7}>
+                <Text style={loginStyles.footerLink}>Iniciar Sesión</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+};
+
+export default RegisterScreen;
