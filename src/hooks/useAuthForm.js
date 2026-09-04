@@ -52,11 +52,6 @@ export function useAuthForm() {
         const userObj = result.user;
         setCurrentUser(userObj);
 
-        Alert.alert(
-          '¡Bienvenido a TrustPhone!',
-          `Sesión iniciada correctamente en la API.\n\nUsuario: ${userObj.nombre} ${userObj.Apellido}\nCorreo: ${userObj.correo}`,
-          [{ text: 'Aceptar' }]
-        );
       } else {
         Alert.alert(
           'Error de Autenticación',
@@ -76,6 +71,9 @@ export function useAuthForm() {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setEmail('');
+    setPassword('');
+    setErrors({});
   };
 
   const handleSocialLogin = (provider) => {

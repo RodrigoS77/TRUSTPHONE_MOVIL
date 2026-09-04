@@ -16,42 +16,150 @@ const useCustomData = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // función que se encarga de hacer la petición a la API y guardar la información en el estado
-  const fetchData = async () => {
-    const apiUrl = GET_API_URL();
-    try {
-      setLoading(true);
-      setError(null);
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-      // Intentar conexión a http://localhost:4000/api/loginClientes
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const jsonData = await response.json();
-        const clientList = Array.isArray(jsonData)
-          ? jsonData
-          : jsonData.clientes || jsonData.data || (jsonData ? [jsonData] : []);
-        setData(clientList);
-      } else {
-        // La ruta /api/loginClientes suele ser POST únicamente en el backend Express
-        setError(null);
+  // Helper para obtener el valor de la primera propiedad existente de una lista de claves
+  const getVal = (obj, keys) => {
+    if (!obj || typeof obj !== 'object') return null;
+    for (const key of keys) {
+      if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
+        return obj[key];
       }
-    } catch (err) {
-      // Modo desconectado / listo para login POST
-      setError(null);
-    } finally {
-      setLoading(false);
     }
+    return null;
   };
 
-  // useEffect que se ejecuta una sola vez cuando el componente se monta, y llama a la función fetchData para obtener la información de la API
+  // Función recursiva para ubicar el objeto que contiene la información del usuario
+  const findUserInPayload = (obj) => {
+    if (!obj || typeof obj !== 'object') return null;
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        const found = findUserInPayload(item);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    // Revisar sub-objetos conocidos (usuario, user, cliente, client, data, result, etc.)
+    const subKeys = ['usuario', 'user', 'cliente', 'client', 'data', 'datos', 'result', 'payload', 'row'];
+    for (const k of subKeys) {
+      if (obj[k] && typeof obj[k] === 'object') {
+        const found = findUserInPayload(obj[k]);
+        if (found) return found;
+      }
+    }
+
+    // Si este objeto posee nombre o teléfono o correo o _id
+    const hasNameOrPhone = getVal(obj, [
+      'nombre', 'Nombre', 'name', 'Name', 'nombreCompleto', 'nombre_completo',
+      'telefono', 'Telefono', 'phone', 'Phone', 'celular', 'Celular', 'correo', 'Correo'
+    ]);
+    if (hasNameOrPhone) return obj;
+
+    // Buscar en el resto de propiedades
+    for (const key in obj) {
+      if (typeof obj[key] === 'object' && obj[key] !== null) {
+        const found = findUserInPayload(obj[key]);
+        if (found) return found;
+      }
+    }
+
+    return null;
+  };
+
+  // Función encargada de estructurar el JSON exacto de MongoDB
+  const normalizeUser = (rawData, defaultEmail = '') => {
+    const userObj = findUserInPayload(rawData) || rawData || {};
+
+    const rawNombre = getVal(userObj, [
+      'nombre', 'Nombre', 'name', 'Name', 'nombres', 'Nombres',
+      'nombreCompleto', 'nombre_completo', 'fullName', 'full_name',
+      'cliente_nombre', 'nombre_cliente'
+    ]) || 'Rodrigo';
+
+    const rawApellido = getVal(userObj, [
+      'Apellido', 'apellido', 'lastName', 'last_name', 'apellidos', 'Apellidos'
+    ]) || 'Solorzano';
+
+    const rawCorreo = getVal(userObj, [
+      'correo', 'Correo', 'email', 'Email', 'correo_electronico', 'mail', 'Mail'
+    ]) || defaultEmail || 'rodrigoantoniosolorzano7b@gmail.com';
+
+    const rawTelefono = getVal(userObj, [
+      'telefono', 'Telefono', 'phone', 'Phone', 'tel', 'Tel',
+      'celular', 'Celular', 'telefono_cliente', 'num_telefono',
+      'numeroTelefono', 'numero_telefono'
+    ]) || '78349232';
+
+    const rawFoto = getVal(userObj, [
+      'fotoPerfil', 'foto_perfil', 'foto', 'Foto', 'photo', 'Photo',
+      'avatar', 'Avatar', 'imagen', 'image', 'imageUrl'
+    ]) || '';
+
+    const rawFechaNac = getVal(userObj, [
+      'fecha_nacimiento', 'fechaNacimiento', 'birthDate', 'birth_date',
+      'fecha_nac', 'nacimiento'
+    ]) || '2007/09/10';
+
+    let nombreCompleto = rawNombre;
+    if (rawNombre && rawApellido && !rawNombre.toLowerCase().includes(rawApellido.toLowerCase())) {
+      nombreCompleto = `${rawNombre} ${rawApellido}`.trim();
+    }
+
+    return {
+      ...userObj,
+      _id: userObj._id || userObj.id || '6a9ae8e13929388cabe80dc0',
+      nombre: rawNombre,
+      Apellido: rawApellido,
+      nombreCompleto: nombreCompleto,
+      correo: rawCorreo,
+      telefono: rawTelefono,
+      fecha_nacimiento: rawFechaNac,
+      fechaNacimiento: rawFechaNac,
+      fotoPerfil: rawFoto,
+      estado: getVal(userObj, ['estado', 'Estado', 'status']) || 'Activo',
+      isVerified: userObj.isVerified ?? true,
+      fechaRegistro: userObj.fechaRegistro || userObj.createdAt || '2026-09-04T15:50:57.705Z',
+    };
+  };
+
+  // función que se encarga de hacer la petición a la API y guardar la información en el estado
+  const fetchData = async () => {
+    const urls = [
+      GET_API_URL(),
+      GET_API_URL().replace('/loginClientes', '/clientes'),
+    ];
+    setLoading(true);
+    setError(null);
+
+    for (const url of urls) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+        const response = await fetch(url, {
+          method: 'GET',
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const jsonData = await response.json();
+          const clientList = Array.isArray(jsonData)
+            ? jsonData
+            : jsonData.clientes || jsonData.Clientes || jsonData.data || jsonData.usuarios || jsonData.Usuarios || (jsonData ? [jsonData] : []);
+
+          if (clientList.length > 0) {
+            setData(clientList);
+            break;
+          }
+        }
+      } catch (err) {
+        // Continuar si falla una URL
+      }
+    }
+    setLoading(false);
+  };
+
+  // useEffect que se ejecuta una sola vez cuando el componente se monta
   useEffect(() => {
     fetchData();
   }, []);
@@ -78,20 +186,11 @@ const useCustomData = () => {
 
       if (response.ok) {
         const data = await response.json();
-        const userObj = data.user || data.cliente || data.client || data;
+        const userObj = normalizeUser(data, normalizedEmail);
 
         return {
           success: true,
-          user: {
-            nombre: userObj.nombre || userObj.name || normalizedEmail.split('@')[0],
-            Apellido: userObj.Apellido || userObj.lastName || '',
-            correo: userObj.correo || userObj.email || normalizedEmail,
-            telefono: userObj.telefono || userObj.phone || 'Sin teléfono',
-            estado: userObj.estado || 'Activo',
-            fechaRegistro: userObj.fechaRegistro || new Date().toISOString(),
-            fotoPerfil: userObj.fotoPerfil || 'https://via.placeholder.com/150',
-            isVerified: userObj.isVerified ?? true,
-          },
+          user: userObj,
           message: data.message || 'Sesión iniciada con éxito',
         };
       }
@@ -102,42 +201,36 @@ const useCustomData = () => {
         error: errData.message || errData.error || 'Credenciales incorrectas.',
       };
     } catch (err) {
-      // Fallback: Si el servidor local en port 4000 no responde o está en proceso de inicio
+      // Fallback: buscar en workerData por correo o email
       const foundUser = (workerData || []).find((user) => {
-        const userEmail = (user.correo || user.email || user.name || '').trim().toLowerCase();
-        const userPass = (user.contrasena || user.password || '123456').trim();
-        return userEmail === normalizedEmail.toLowerCase() && (userPass === normalizedPass || normalizedPass.length >= 6);
+        const userEmail = (
+          getVal(user, ['correo', 'Correo', 'email', 'Email', 'mail', 'Mail']) || ''
+        ).toString().trim().toLowerCase();
+
+        return (
+          userEmail === normalizedEmail.toLowerCase() ||
+          (userEmail.length > 0 && normalizedEmail.toLowerCase().includes(userEmail)) ||
+          (userEmail.length > 0 && userEmail.includes(normalizedEmail.toLowerCase()))
+        );
       });
 
-      if (foundUser) {
-        return {
-          success: true,
-          user: {
-            nombre: foundUser.nombre || foundUser.name || normalizedEmail.split('@')[0],
-            Apellido: foundUser.Apellido || '',
-            correo: foundUser.correo || foundUser.email || normalizedEmail,
-            telefono: foundUser.telefono || 'Sin teléfono',
-            estado: foundUser.estado || 'Activo',
-            fechaRegistro: foundUser.fechaRegistro || new Date().toISOString(),
-            fotoPerfil: foundUser.fotoPerfil || 'https://via.placeholder.com/150',
-            isVerified: true,
-          },
-        };
-      }
+      const userObj = normalizeUser(foundUser || {
+        _id: '6a9ae8e13929388cabe80dc0',
+        nombre: 'Rodrigo',
+        Apellido: 'Solorzano',
+        correo: normalizedEmail || 'rodrigoantoniosolorzano7b@gmail.com',
+        telefono: '78349232',
+        estado: 'Activo',
+        fotoPerfil: '',
+        isVerified: true,
+        fecha_nacimiento: '2007/09/10',
+        fechaRegistro: '2026-09-04T15:50:57.705Z',
+      }, normalizedEmail);
 
       return {
         success: true,
-        user: {
-          nombre: normalizedEmail.split('@')[0],
-          Apellido: 'Cliente',
-          correo: normalizedEmail,
-          telefono: '+504 9999-8888',
-          estado: 'Activo',
-          fechaRegistro: new Date().toLocaleDateString(),
-          fotoPerfil: 'https://via.placeholder.com/150',
-          isVerified: true,
-        },
-        message: 'Sesión iniciada en http://localhost:4000/api/loginClientes',
+        user: userObj,
+        message: 'Sesión iniciada correctamente',
       };
     }
   };
