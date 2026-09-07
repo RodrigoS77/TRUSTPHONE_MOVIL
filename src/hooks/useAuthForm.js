@@ -5,12 +5,12 @@ import useCustomData from './useCustomData';
 
 export function useAuthForm() {
   const router = useRouter();
-  const { workerData, loading: apiLoading, error: apiError, loginClient, fetchData } = useCustomData();
+  const { loginClient } = useCustomData();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [formLoading, setFormLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [focusedInput, setFocusedInput] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -41,17 +41,14 @@ export function useAuthForm() {
   const handleLogin = async () => {
     if (!validate()) return;
 
-    setFormLoading(true);
+    setLoading(true);
 
     try {
-      // Petición de validación a http://localhost:4000/api/loginClientes
       const result = await loginClient(email, password);
-      setFormLoading(false);
+      setLoading(false);
 
       if (result.success && result.user) {
-        const userObj = result.user;
-        setCurrentUser(userObj);
-
+        setCurrentUser(result.user);
       } else {
         Alert.alert(
           'Error de Autenticación',
@@ -60,10 +57,10 @@ export function useAuthForm() {
         );
       }
     } catch (err) {
-      setFormLoading(false);
+      setLoading(false);
       Alert.alert(
         'Error de Conexión',
-        'No se pudo conectar con http://localhost:4000/api/loginClientes.',
+        'No se pudo conectar con el servidor.',
         [{ text: 'Aceptar' }]
       );
     }
@@ -103,13 +100,9 @@ export function useAuthForm() {
     setPassword,
     showPassword,
     toggleShowPassword,
-    loading: formLoading || apiLoading,
-    apiLoading,
-    apiError,
-    workerData,
+    loading,
     currentUser,
     handleLogout,
-    fetchData,
     errors,
     focusedInput,
     setFocusedInput,
@@ -119,4 +112,3 @@ export function useAuthForm() {
     handleSignUp,
   };
 }
-

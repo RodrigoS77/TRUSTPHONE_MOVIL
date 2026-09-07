@@ -1,14 +1,9 @@
 // Hook para obtener el catálogo de celulares desde http://localhost:4000/api/celulares
 
 import { useState, useEffect, useCallback } from 'react';
-import { Platform } from 'react-native';
+import { API_ENDPOINTS } from '../config/api';
 
-const GET_PHONES_URL = () => {
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:4000/api/celulares';
-  }
-  return 'http://localhost:4000/api/celulares';
-};
+const GET_PHONES_URL = () => API_ENDPOINTS.CELULARES();
 
 const usePhones = () => {
   const [phones, setPhones] = useState([]);

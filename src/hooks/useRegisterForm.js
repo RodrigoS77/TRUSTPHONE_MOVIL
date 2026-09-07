@@ -5,7 +5,7 @@ import useCustomData from './useCustomData';
 
 export function useRegisterForm() {
   const router = useRouter();
-  const { registerClient, loading: apiLoading } = useCustomData();
+  const { registerClient } = useCustomData();
 
   const [fullName, setFullName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -132,7 +132,7 @@ export function useRegisterForm() {
     setConfirmPassword,
     showPassword,
     toggleShowPassword,
-    loading: submitting || apiLoading,
+    loading: submitting,
     errors,
     focusedInput,
     setFocusedInput,
