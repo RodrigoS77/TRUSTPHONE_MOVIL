@@ -78,35 +78,27 @@ export function useRegisterForm() {
 
     if (result.success) {
       Alert.alert(
-        '¡Registro Exitoso en API!',
-        `El cliente ${nombre} ${Apellido} fue guardado correctamente en la API.`,
+        'Verificación Requerida',
+        `Se ha enviado un código de verificación a ${email.trim()}. Ingrésalo a continuación para activar tu cuenta.`,
         [
           {
-            text: 'Iniciar Sesión',
-            onPress: () => router.push('/'),
+            text: 'Ingresar Código',
+            onPress: () => {
+              router.push({
+                pathname: '/verify-email',
+                params: { email: email.trim(), nombre },
+              });
+            },
           },
         ]
       );
     } else {
       Alert.alert(
-        'Aviso de Registro',
-        `No se pudo enviar a la API remota, pero el registro local fue completado para ${nombre}.`,
-        [
-          {
-            text: 'Ir a Iniciar Sesión',
-            onPress: () => router.push('/'),
-          },
-        ]
+        'Error de Registro',
+        result.error || 'No se pudo registrar el cliente.',
+        [{ text: 'Entendido' }]
       );
     }
-  };
-
-  const handleSocialRegister = (provider) => {
-    Alert.alert(
-      'Registro con ' + provider,
-      `Iniciando registro mediante ${provider}...`,
-      [{ text: 'Entendido' }]
-    );
   };
 
   const handleGoToLogin = () => {
@@ -137,7 +129,6 @@ export function useRegisterForm() {
     focusedInput,
     setFocusedInput,
     handleRegister,
-    handleSocialRegister,
     handleGoToLogin,
   };
 }
