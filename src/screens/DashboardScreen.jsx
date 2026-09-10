@@ -18,13 +18,6 @@ import {
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-if (
-  Platform.OS === 'android' &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 import { Ionicons } from '@expo/vector-icons';
 import { dashboardStyles as styles } from '../styles/dashboardStyles';
 import { colors } from '../styles/theme';
@@ -192,7 +185,7 @@ const CartToast = ({ message, onHide, onViewCart }) => {
 };
 
 // ─── Modal de Filtros Avanzados ───────────────────────────────────────────────
-const FilterModal = ({
+function FilterModal({
   visible,
   onClose,
   activeFilter,
@@ -206,7 +199,7 @@ const FilterModal = ({
   resetFilters,
   totalResults,
   brands,
-}) => {
+}) {
   return (
     <Modal
       visible={visible}
@@ -344,7 +337,7 @@ const FilterModal = ({
 };
 
 // ─── Modal de Ordenamiento ───────────────────────────────────────────────────
-const SortModal = ({ visible, onClose, sortBy, setSortBy }) => {
+function SortModal({ visible, onClose, sortBy, setSortBy }) {
   const options = [
     { key: 'featured', label: 'Destacados', subtitle: 'Orden recomendado', icon: 'sparkles-outline' },
     { key: 'priceAsc', label: 'Precio: Menor a Mayor', subtitle: 'De más económico a premium', icon: 'trending-up-outline' },
