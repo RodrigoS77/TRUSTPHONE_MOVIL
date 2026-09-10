@@ -1,7 +1,7 @@
 // Hook para obtener el catálogo de celulares desde http://localhost:4000/api/celulares
 
 import { useState, useEffect, useCallback } from 'react';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS } from './useCustomData';
 
 const GET_PHONES_URL = () => API_ENDPOINTS.CELULARES();
 
@@ -33,7 +33,7 @@ const usePhones = () => {
         // Soporta distintas estructuras de respuesta
         const phoneList = Array.isArray(jsonData)
           ? jsonData
-          : jsonData.celulares || jsonData.data || jsonData.phones || [];
+          : jsonData.value || jsonData.celulares || jsonData.data || jsonData.phones || [];
         setPhones(phoneList);
       } else {
         setError(`Error del servidor: ${response.status}`);
