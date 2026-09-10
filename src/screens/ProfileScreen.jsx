@@ -83,6 +83,10 @@ const ProfileScreen = ({ currentUser, onLogout, onNavigate, onBack }) => {
   const handleMenuPress = (key) => {
     if (key === 'personalInfo') {
       onNavigate('personalInfo');
+    } else if (key === 'addresses') {
+      onNavigate('addresses');
+    } else if (key === 'payment') {
+      onNavigate('paymentMethods');
     } else {
       Alert.alert('Próximamente', 'Esta sección estará disponible pronto.', [{ text: 'OK' }]);
     }
@@ -104,8 +108,13 @@ const ProfileScreen = ({ currentUser, onLogout, onNavigate, onBack }) => {
       {/* ── Header azul ── */}
       <View style={styles.headerBg}>
         <View style={styles.headerRow}>
-          <TouchableOpacity style={styles.headerBackBtn} onPress={onBack} activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+          <TouchableOpacity
+            style={styles.headerBackBtn}
+            onPress={onBack}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Perfil</Text>
           <TouchableOpacity style={styles.headerSettingsBtn} activeOpacity={0.7}>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,14 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fontSize, borderRadius, spacing, shadows } from '../styles/theme';
+import { addressStyles as addrStyles } from '../styles/addressStyles';
 import StepIndicator from '../components/StepIndicator';
 import useCheckout from '../hooks/useCheckout';
+import useCustomData from '../hooks/useCustomData';
 
 export const CheckoutPaymentScreen = ({
   cart,
@@ -37,6 +40,110 @@ export const CheckoutPaymentScreen = ({
     handleConfirmOrder,
   } = useCheckout();
 
+  const { getDirecciones, createDireccion, getMetodosPago } = useCustomData();
+  const [direcciones, setDirecciones] = useState([]);
+  const [selectedAddress, setSelectedAddress] = useState(null);
+  const [savedCards, setSavedCards] = useState([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(true);
+  const [isChangingAddress, setIsChangingAddress] = useState(false);
+  const [isAddingNewAddress, setIsAddingNewAddress] = useState(false);
+
+  // Formulario rápido para nueva dirección desde checkout
+  const [newTitulo, setNewTitulo] = useState('Casa');
+  const [newNombre, setNewNombre] = useState(currentUser?.nombre || currentUser?.name || '');
+  const [newTelefono, setNewTelefono] = useState(currentUser?.telefono || '');
+  const [newDireccion, setNewDireccion] = useState('');
+  const [newColonia, setNewColonia] = useState('');
+  const [newCiudad, setNewCiudad] = useState('San Salvador');
+  const [newDepartamento, setNewDepartamento] = useState('San Salvador');
+  const [savingNewAddress, setSavingNewAddress] = useState(false);
+
+  const clienteId = currentUser?._id || currentUser?.id;
+
+  useEffect(() => {
+    const fetchSavedAddresses = async () => {
+      if (!clienteId) {
+        setLoadingAddresses(false);
+        return;
+      }
+      setLoadingAddresses(true);
+      try {
+        const res = await getDirecciones(clienteId);
+        if (res.success && res.direcciones) {
+          setDirecciones(res.direcciones);
+          const principal = res.direcciones.find(d => d.esPrincipal) || res.direcciones[0] || null;
+          setSelectedAddress(principal);
+        }
+      } catch (e) {
+        console.log('Error al cargar direcciones en checkout:', e);
+      }
+
+      try {
+        const cardsRes = await getMetodosPago(clienteId);
+        if (cardsRes.success && cardsRes.metodosPago) {
+          setSavedCards(cardsRes.metodosPago);
+          const defaultCard = cardsRes.metodosPago.find(c => c.esPredeterminado) || cardsRes.metodosPago[0];
+          if (defaultCard) {
+            setSelectedMethod(defaultCard.tipo || 'Tarjeta de Débito');
+            setCardNumber(`•••• •••• •••• ${defaultCard.ultimos4}`);
+            setExpiry(defaultCard.fechaExpiracion || '08/28');
+          }
+        }
+      } catch (e) {
+        console.log('Error al cargar tarjetas en checkout:', e);
+      }
+      setLoadingAddresses(false);
+    };
+
+    fetchSavedAddresses();
+  }, [clienteId]);
+
+  const handleSaveQuickAddress = async () => {
+    if (!clienteId) {
+      Alert.alert('Sesión requerida', 'Debes iniciar sesión para guardar una dirección.');
+      return;
+    }
+    if (!newNombre.trim()) {
+      Alert.alert('Campo requerido', 'Por favor ingresa el nombre de quien recibe.');
+      return;
+    }
+    if (!newTelefono.trim()) {
+      Alert.alert('Campo requerido', 'Por favor ingresa un teléfono de contacto.');
+      return;
+    }
+    if (!newDireccion.trim()) {
+      Alert.alert('Campo requerido', 'Por favor ingresa la dirección de entrega.');
+      return;
+    }
+
+    setSavingNewAddress(true);
+    const payload = {
+      cliente: clienteId,
+      titulo: newTitulo || 'Casa',
+      nombreDestinatario: newNombre.trim(),
+      telefono: newTelefono.trim(),
+      direccion: newDireccion.trim(),
+      colonia: newColonia.trim(),
+      ciudad: newCiudad.trim() || 'San Salvador',
+      departamento: newDepartamento.trim() || 'San Salvador',
+      esPrincipal: direcciones.length === 0,
+    };
+
+    const res = await createDireccion(payload);
+    setSavingNewAddress(false);
+
+    if (res.success && res.direccion) {
+      setDirecciones(prev => [res.direccion, ...prev]);
+      setSelectedAddress(res.direccion);
+      setIsAddingNewAddress(false);
+      setIsChangingAddress(false);
+      setNewDireccion('');
+      setNewColonia('');
+    } else {
+      Alert.alert('Error', res.error || 'No se pudo guardar la dirección.');
+    }
+  };
+
   const subtotal = cart.reduce((sum, item) => sum + (item.precio || item.price || 0) * item.quantity, 0);
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const formattedSubtotal = subtotal.toLocaleString('es-ES', { minimumFractionDigits: 2 });
@@ -49,8 +156,13 @@ export const CheckoutPaymentScreen = ({
     <View style={styles.container}>
       {/* Header Dark Navy */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={onBack}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
         <View style={styles.headerTitleCenter}>
           <Text style={styles.headerTitle}>Finalizar Pago</Text>
@@ -72,8 +184,9 @@ export const CheckoutPaymentScreen = ({
         style={{ flex: 1 }}
       >
         <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={true}
           keyboardShouldPersistTaps="handled"
         >
           {/* Card: Resumen de compra desplegable / conciso */}
@@ -123,6 +236,240 @@ export const CheckoutPaymentScreen = ({
             </View>
           </View>
 
+          {/* ── SECCIÓN: Dirección de Entrega ── */}
+          <View style={addrStyles.checkoutAddressCard}>
+            <View style={addrStyles.checkoutAddressHeader}>
+              <View style={addrStyles.checkoutAddressTitleRow}>
+                <Ionicons name="location-sharp" size={18} color={colors.primary} />
+                <Text style={addrStyles.checkoutAddressTitle}>Dirección de entrega</Text>
+              </View>
+              {direcciones.length > 0 && !isAddingNewAddress && (
+                <TouchableOpacity
+                  style={addrStyles.checkoutChangeBtn}
+                  onPress={() => setIsChangingAddress(!isChangingAddress)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={addrStyles.checkoutChangeBtnText}>
+                    {isChangingAddress ? 'Cerrar' : 'Cambiar'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {loadingAddresses ? (
+              <View style={{ paddingVertical: 14, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 4 }}>
+                  Cargando direcciones...
+                </Text>
+              </View>
+            ) : isAddingNewAddress ? (
+              /* Mini Formulario de Dirección */
+              <View style={styles.quickFormCard}>
+                <Text style={styles.quickFormTitle}>Nueva dirección de entrega</Text>
+
+                {/* Chips de tipo */}
+                <View style={[styles.labelRowQuick, { marginBottom: 10 }]}>
+                  {['Casa', 'Oficina', 'Otro'].map((l) => (
+                    <TouchableOpacity
+                      key={l}
+                      style={[styles.quickChip, newTitulo === l && styles.quickChipActive]}
+                      onPress={() => setNewTitulo(l)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.quickChipText, newTitulo === l && styles.quickChipTextActive]}>
+                        {l}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={styles.quickInputGroup}>
+                  <Text style={styles.quickInputLabel}>Nombre de quien recibe *</Text>
+                  <TextInput
+                    style={styles.quickInput}
+                    value={newNombre}
+                    onChangeText={setNewNombre}
+                    placeholder="Ej: Roberto Solórzano"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+
+                <View style={styles.quickInputGroup}>
+                  <Text style={styles.quickInputLabel}>Teléfono de contacto *</Text>
+                  <TextInput
+                    style={styles.quickInput}
+                    value={newTelefono}
+                    onChangeText={setNewTelefono}
+                    placeholder="Ej: 7890-1234"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="phone-pad"
+                  />
+                </View>
+
+                <View style={styles.quickInputGroup}>
+                  <Text style={styles.quickInputLabel}>Dirección exacta (calle, número) *</Text>
+                  <TextInput
+                    style={styles.quickInput}
+                    value={newDireccion}
+                    onChangeText={setNewDireccion}
+                    placeholder="Ej: Av. Masferrer Norte #340"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+
+                <View style={styles.quickInputGroup}>
+                  <Text style={styles.quickInputLabel}>Colonia o Residencial</Text>
+                  <TextInput
+                    style={styles.quickInput}
+                    value={newColonia}
+                    onChangeText={setNewColonia}
+                    placeholder="Ej: Col. Escalón"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={[styles.quickInputGroup, { flex: 1 }]}>
+                    <Text style={styles.quickInputLabel}>Ciudad *</Text>
+                    <TextInput
+                      style={styles.quickInput}
+                      value={newCiudad}
+                      onChangeText={setNewCiudad}
+                      placeholder="San Salvador"
+                      placeholderTextColor="#94A3B8"
+                    />
+                  </View>
+                  <View style={[styles.quickInputGroup, { flex: 1 }]}>
+                    <Text style={styles.quickInputLabel}>Departamento *</Text>
+                    <TextInput
+                      style={styles.quickInput}
+                      value={newDepartamento}
+                      onChangeText={setNewDepartamento}
+                      placeholder="San Salvador"
+                      placeholderTextColor="#94A3B8"
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.quickBtnRow}>
+                  <TouchableOpacity
+                    style={styles.quickCancelBtn}
+                    onPress={() => setIsAddingNewAddress(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.quickCancelBtnText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.quickSaveBtn}
+                    onPress={handleSaveQuickAddress}
+                    disabled={savingNewAddress}
+                    activeOpacity={0.85}
+                  >
+                    {savingNewAddress ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.quickSaveBtnText}>Guardar y Usar</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : isChangingAddress ? (
+              /* Selector de direcciones guardadas */
+              <View style={addrStyles.checkoutAddressSelector}>
+                {direcciones.map((dir) => {
+                  const isSelected = selectedAddress?._id === dir._id;
+                  return (
+                    <TouchableOpacity
+                      key={dir._id}
+                      style={[
+                        addrStyles.checkoutAddressOption,
+                        isSelected && addrStyles.checkoutAddressOptionSelected,
+                      ]}
+                      onPress={() => {
+                        setSelectedAddress(dir);
+                        setIsChangingAddress(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                        size={20}
+                        color={isSelected ? colors.primary : '#94A3B8'}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textPrimary }}>
+                            {dir.titulo || 'Dirección'}
+                          </Text>
+                          {dir.esPrincipal && (
+                            <View style={addrStyles.principalBadge}>
+                              <Text style={addrStyles.principalBadgeText}>Principal</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={{ fontSize: 12, color: colors.textSecondary }} numberOfLines={1}>
+                          {dir.direccion}{dir.colonia ? `, ${dir.colonia}` : ''} ({dir.ciudad})
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                <TouchableOpacity
+                  style={addrStyles.checkoutAddNewBtn}
+                  onPress={() => setIsAddingNewAddress(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="add" size={16} color={colors.primary} />
+                  <Text style={addrStyles.checkoutAddNewBtnText}>Agregar otra dirección</Text>
+                </TouchableOpacity>
+              </View>
+            ) : selectedAddress ? (
+              /* Dirección seleccionada actualmente */
+              <View style={addrStyles.checkoutAddressBody}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <Ionicons name="home-outline" size={14} color={colors.primary} />
+                  <Text style={addrStyles.checkoutAddressName}>
+                    {selectedAddress.nombreDestinatario} ({selectedAddress.titulo || 'Entrega'})
+                  </Text>
+                  {selectedAddress.esPrincipal && (
+                    <View style={addrStyles.principalBadge}>
+                      <Text style={addrStyles.principalBadgeText}>Principal</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={addrStyles.checkoutAddressText}>
+                  {selectedAddress.direccion}{selectedAddress.colonia ? `, ${selectedAddress.colonia}` : ''}
+                </Text>
+                <Text style={addrStyles.checkoutAddressText}>
+                  {selectedAddress.ciudad}, {selectedAddress.departamento}
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                  <Ionicons name="call-outline" size={12} color={colors.textSecondary} />
+                  <Text style={{ fontSize: 11, color: colors.textSecondary }}>
+                    {selectedAddress.telefono}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              /* Sin direcciones registradas */
+              <View style={addrStyles.noAddressContainer}>
+                <Ionicons name="location-outline" size={32} color="#94A3B8" />
+                <Text style={addrStyles.noAddressText}>
+                  No tienes direcciones guardadas para el envío
+                </Text>
+                <TouchableOpacity
+                  style={[addrStyles.checkoutChangeBtn, { paddingHorizontal: 16, paddingVertical: 8 }]}
+                  onPress={() => setIsAddingNewAddress(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={addrStyles.checkoutChangeBtnText}>+ Agregar dirección de entrega</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
           {/* Sección: Método de Pago */}
           <View style={styles.paymentSectionHeader}>
             <Text style={styles.paymentSectionTitle}>Método de pago</Text>
@@ -131,6 +478,58 @@ export const CheckoutPaymentScreen = ({
               <Text style={styles.tlsText}>Cifrado TLS 256-bit</Text>
             </View>
           </View>
+
+          {/* Carrusel de tarjetas guardadas en perfil si existen */}
+          {savedCards.length > 0 && (
+            <View style={{ marginBottom: 14 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textSecondary, marginBottom: 8, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                Tus tarjetas guardadas
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {savedCards.map((sc) => {
+                    const isCardSelected = cardNumber.endsWith(sc.ultimos4);
+                    return (
+                      <TouchableOpacity
+                        key={sc._id}
+                        style={{
+                          backgroundColor: isCardSelected ? '#0F2544' : '#FFFFFF',
+                          borderRadius: 12,
+                          padding: 12,
+                          borderWidth: 1.5,
+                          borderColor: isCardSelected ? '#38BDF8' : '#E2E8F0',
+                          minWidth: 155,
+                        }}
+                        onPress={() => {
+                          setSelectedMethod(sc.tipo || 'Tarjeta de Débito');
+                          setCardNumber(`•••• •••• •••• ${sc.ultimos4}`);
+                          setExpiry(sc.fechaExpiracion || '08/28');
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <Text style={{ fontSize: 12, fontWeight: '800', color: isCardSelected ? '#38BDF8' : colors.primary }}>
+                            {sc.marca || 'VISA'}
+                          </Text>
+                          {sc.esPredeterminado && (
+                            <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
+                              <Text style={{ fontSize: 9, fontWeight: '800', color: '#16A34A' }}>Principal</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: isCardSelected ? '#FFFFFF' : colors.textPrimary, letterSpacing: 1 }}>
+                          •••• {sc.ultimos4}
+                        </Text>
+                        <Text style={{ fontSize: 10, color: isCardSelected ? '#94A3B8' : colors.textSecondary, marginTop: 4 }}>
+                          Vence: {sc.fechaExpiracion}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+          )}
 
           {/* Opción 1: Tarjeta de Débito (Recomendado) */}
           <TouchableOpacity
@@ -342,8 +741,14 @@ export const CheckoutPaymentScreen = ({
         </View>
 
         <TouchableOpacity
-          style={[styles.confirmBtn, loading && styles.confirmBtnDisabled]}
-          onPress={() => handleConfirmOrder(cart, currentUser, onSuccess)}
+          style={[styles.confirmBtn, (loading || (!selectedAddress && !loadingAddresses)) && styles.confirmBtnDisabled]}
+          onPress={() => {
+            if (!selectedAddress) {
+              Alert.alert('Dirección requerida', 'Por favor agrega o selecciona una dirección de entrega.');
+              return;
+            }
+            handleConfirmOrder(cart, currentUser, onSuccess, selectedAddress);
+          }}
           disabled={loading}
           activeOpacity={0.85}
         >
@@ -422,7 +827,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.md,
-    paddingBottom: 130, // Espacio para barra inferior
+    paddingBottom: 24,
   },
   purchaseSummaryCard: {
     backgroundColor: '#FFFFFF',
@@ -679,16 +1084,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
     paddingHorizontal: spacing.md,
     paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 14,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
     ...shadows.card,
   },
   bottomTotalRow: {
@@ -737,6 +1138,96 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: fontSize.sm + 1,
     fontWeight: '700',
+  },
+  // ─── Estilos de formulario rápido de dirección en Checkout ───
+  quickFormCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: borderRadius.md,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickFormTitle: {
+    fontSize: fontSize.xs + 1,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
+  labelRowQuick: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  quickChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickChipActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: colors.primary,
+  },
+  quickChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  quickChipTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  quickInputGroup: {
+    marginBottom: 8,
+  },
+  quickInputLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 3,
+  },
+  quickInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    height: 40,
+    fontSize: fontSize.xs + 1,
+    color: colors.textPrimary,
+  },
+  quickBtnRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  quickSaveBtn: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: 6,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickSaveBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: fontSize.xs + 1,
+  },
+  quickCancelBtn: {
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#E2E8F0',
+  },
+  quickCancelBtnText: {
+    color: colors.textSecondary,
+    fontWeight: '600',
+    fontSize: fontSize.xs + 1,
   },
 });
 

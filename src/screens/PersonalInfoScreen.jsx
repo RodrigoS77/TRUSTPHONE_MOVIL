@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView,
   View,
@@ -9,12 +9,27 @@ import {
   Image,
   Alert,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fontSize, spacing, borderRadius, shadows } from '../styles/theme';
+import useCustomData from '../hooks/useCustomData';
+
+// ─── Función helper para formatear fechas a DD/MM/AAAA ────────────────────────
+const formatDateForDisplay = (val) => {
+  if (!val) return '';
+  const str = String(val).trim();
+  // Formato YYYY/MM/DD o YYYY-MM-DD
+  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+  }
+  return str;
+};
 
 // ─── Campo de formulario ──────────────────────────────────────────────────────
-const FormField = ({ label, value, onChangeText, icon, placeholder, keyboardType }) => {
+const FormField = ({ label, value, onChangeText, icon, placeholder, keyboardType, maxLength }) => {
   const [focused, setFocused] = useState(false);
   return (
     <View style={s.fieldGroup}>
@@ -28,6 +43,7 @@ const FormField = ({ label, value, onChangeText, icon, placeholder, keyboardType
           placeholder={placeholder}
           placeholderTextColor={colors.placeholder}
           keyboardType={keyboardType || 'default'}
+          maxLength={maxLength}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />
@@ -37,8 +53,10 @@ const FormField = ({ label, value, onChangeText, icon, placeholder, keyboardType
 };
 
 // ─── Pantalla Información Personal ───────────────────────────────────────────
-const PersonalInfoScreen = ({ currentUser, onBack }) => {
+const PersonalInfoScreen = ({ currentUser, onBack, onUpdateUser }) => {
+  const { getCliente, updateCliente } = useCustomData();
   const [imgError, setImgError] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const getProp = (obj, keys) => {
@@ -49,43 +67,129 @@ const PersonalInfoScreen = ({ currentUser, onBack }) => {
     return null;
   };
 
-  const rawNombre = getProp(currentUser, ['nombre', 'Nombre', 'name', 'Name', 'nombreCompleto', 'nombre_completo']) || '';
+  const rawNombre = getProp(currentUser, ['nombre', 'Nombre', 'name', 'Name']) || '';
   const rawApellido = getProp(currentUser, ['apellido', 'Apellido', 'lastName', 'last_name']) || '';
+  const rawDate = getProp(currentUser, ['fecha_nacimiento', 'fechaNacimiento', 'birthDate', 'birth_date', 'nacimiento']) || '';
 
-  const fullCombinedName = (() => {
-    if (rawNombre && rawApellido && !rawNombre.toLowerCase().includes(rawApellido.toLowerCase())) {
-      return `${rawNombre} ${rawApellido}`.trim();
-    }
-    return rawNombre || rawApellido || '';
-  })();
+  let initialNombre = rawNombre;
+  let initialApellido = rawApellido;
+  if (!initialApellido && rawNombre.includes(' ')) {
+    const parts = rawNombre.trim().split(' ');
+    initialNombre = parts[0];
+    initialApellido = parts.slice(1).join(' ');
+  }
 
-  const [nombre, setNombre] = useState(fullCombinedName);
+  const [nombre, setNombre] = useState(initialNombre);
+  const [apellido, setApellido] = useState(initialApellido);
   const [correo, setCorreo] = useState(
     getProp(currentUser, ['correo', 'Correo', 'email', 'Email', 'mail']) || ''
   );
   const [telefono, setTelefono] = useState(
     getProp(currentUser, ['telefono', 'Telefono', 'phone', 'Phone', 'celular', 'Celular', 'telefono_cliente']) || ''
   );
-  const [fechaNacimiento, setFechaNacimiento] = useState(
-    getProp(currentUser, ['fechaNacimiento', 'fecha_nacimiento', 'birthDate', 'birth_date', 'nacimiento']) || ''
+  const [fechaNacimiento, setFechaNacimiento] = useState(formatDateForDisplay(rawDate));
+  const [photoUrl, setPhotoUrl] = useState(
+    getProp(currentUser, ['fotoPerfil', 'foto_perfil', 'foto', 'Foto', 'photo', 'Photo', 'avatar', 'imagen'])
   );
 
-  const photoUrl = getProp(currentUser, ['fotoPerfil', 'foto_perfil', 'foto', 'Foto', 'photo', 'Photo', 'avatar', 'imagen']);
+  // Cargar datos frescos desde el backend al montar la pantalla
+  useEffect(() => {
+    const fetchFreshData = async () => {
+      const clienteId = currentUser?._id || currentUser?.id;
+      if (!clienteId) return;
+
+      setLoadingProfile(true);
+      try {
+        const res = await getCliente(clienteId);
+        if (res.success && res.cliente) {
+          const cli = res.cliente;
+          if (cli.nombre) setNombre(cli.nombre);
+          const ape = cli.Apellido || cli.apellido || '';
+          if (ape) setApellido(ape);
+          if (cli.correo) setCorreo(cli.correo);
+          if (cli.telefono) setTelefono(cli.telefono);
+          const bDate = cli.fecha_nacimiento || cli.fechaNacimiento || '';
+          if (bDate) setFechaNacimiento(formatDateForDisplay(bDate));
+          if (cli.fotoPerfil) setPhotoUrl(cli.fotoPerfil);
+
+          if (onUpdateUser) {
+            onUpdateUser(cli);
+          }
+        }
+      } catch (err) {
+        console.log('Error al cargar datos del cliente:', err);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+
+    fetchFreshData();
+  }, [currentUser?._id, currentUser?.id]);
+
+  const handleDateChange = (text) => {
+    if (text.length < fechaNacimiento.length) {
+      setFechaNacimiento(text);
+      return;
+    }
+    const digits = text.replace(/[^0-9]/g, '');
+    if (digits.length <= 2) {
+      setFechaNacimiento(digits);
+    } else if (digits.length <= 4) {
+      setFechaNacimiento(`${digits.slice(0, 2)}/${digits.slice(2)}`);
+    } else {
+      setFechaNacimiento(`${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`);
+    }
+  };
+
   const hasPhoto = photoUrl && !imgError && !photoUrl.includes('placeholder');
   const initial = (nombre || 'R').charAt(0).toUpperCase();
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!nombre.trim()) {
-      Alert.alert('Campo requerido', 'El nombre completo es obligatorio.', [{ text: 'OK' }]);
+      Alert.alert('Campo requerido', 'El nombre es obligatorio.', [{ text: 'OK' }]);
       return;
     }
+
+    const clienteId = currentUser?._id || currentUser?.id;
+    if (!clienteId) {
+      Alert.alert('Error', 'No se encontró la sesión del cliente.');
+      return;
+    }
+
     setSaving(true);
-    setTimeout(() => {
+    try {
+      const payload = {
+        nombre: nombre.trim(),
+        Apellido: apellido.trim(),
+        apellido: apellido.trim(),
+        correo: correo.trim(),
+        telefono: telefono.trim(),
+        fecha_nacimiento: fechaNacimiento.trim(),
+        fechaNacimiento: fechaNacimiento.trim(),
+      };
+
+      const res = await updateCliente(clienteId, payload);
       setSaving(false);
-      Alert.alert('✓ Guardado', 'Tu información ha sido actualizada.', [
-        { text: 'OK', onPress: onBack },
-      ]);
-    }, 800);
+
+      if (res.success) {
+        if (onUpdateUser) {
+          onUpdateUser({
+            ...(currentUser || {}),
+            ...payload,
+            ...(res.cliente || {}),
+          });
+        }
+
+        Alert.alert('✓ Guardado', 'Tu información personal ha sido actualizada con éxito.', [
+          { text: 'OK', onPress: onBack },
+        ]);
+      } else {
+        Alert.alert('Error al guardar', res.error || 'No se pudo actualizar la información.');
+      }
+    } catch (err) {
+      setSaving(false);
+      Alert.alert('Error de conexión', 'No se pudo conectar con el servidor.');
+    }
   };
 
   return (
@@ -93,11 +197,18 @@ const PersonalInfoScreen = ({ currentUser, onBack }) => {
 
       {/* ── 1. HEADER AZUL ── */}
       <View style={s.header}>
-        <TouchableOpacity style={s.backBtn} onPress={onBack} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color="#FFF" />
+        <TouchableOpacity
+          style={s.backBtn}
+          onPress={onBack}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={22} color="#FFF" />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Información Personal</Text>
-        <View style={{ width: 36 }} />
+        <View style={{ width: 36, alignItems: 'flex-end' }}>
+          {loadingProfile && <ActivityIndicator size="small" color="#FFF" />}
+        </View>
       </View>
 
       {/* ── 2. AVATAR — entre header y scroll, marginTop negativo ── */}
@@ -127,11 +238,18 @@ const PersonalInfoScreen = ({ currentUser, onBack }) => {
       >
         <View style={s.formCard}>
           <FormField
-            label="Nombre Completo"
+            label="Nombre"
             value={nombre}
             onChangeText={setNombre}
             icon="person-outline"
-            placeholder="Tu nombre completo"
+            placeholder="Tu nombre"
+          />
+          <FormField
+            label="Apellido"
+            value={apellido}
+            onChangeText={setApellido}
+            icon="person-outline"
+            placeholder="Tu apellido"
           />
           <FormField
             label="Correo Electrónico"
@@ -152,9 +270,11 @@ const PersonalInfoScreen = ({ currentUser, onBack }) => {
           <FormField
             label="Fecha de Nacimiento"
             value={fechaNacimiento}
-            onChangeText={setFechaNacimiento}
+            onChangeText={handleDateChange}
             icon="calendar-outline"
             placeholder="DD/MM/AAAA"
+            keyboardType="numeric"
+            maxLength={10}
           />
         </View>
 

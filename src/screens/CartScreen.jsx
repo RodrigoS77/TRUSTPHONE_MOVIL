@@ -97,8 +97,13 @@ const CartScreen = ({ cart, onUpdateQuantity, onRemoveItem, onBack, onProceedToC
     <View style={[styles.container, { flex: 1 }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={onBack}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Tu Carrito</Text>
         <View style={{ width: 36 }} />

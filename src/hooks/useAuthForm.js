@@ -102,6 +102,7 @@ export function useAuthForm() {
     toggleShowPassword,
     loading,
     currentUser,
+    updateCurrentUser: (updated) => setCurrentUser((prev) => ({ ...prev, ...updated })),
     handleLogout,
     errors,
     focusedInput,

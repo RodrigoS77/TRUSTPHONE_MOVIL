@@ -181,8 +181,13 @@ export const OrdersScreen = ({
     <View style={styles.container}>
       {/* Header Dark Navy */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerIconBtn} onPress={onBack} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+        <TouchableOpacity
+          style={styles.headerIconBtn}
+          onPress={onBack}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Mis Pedidos</Text>
         <TouchableOpacity

@@ -38,7 +38,9 @@ export const useCheckout = () => {
 
   const validatePayment = () => {
     const cleanNumber = cardNumber.replace(/\D/g, '');
-    if (cleanNumber.length < 15) {
+    const isSavedCard = cardNumber.includes('•') && cleanNumber.length === 4;
+
+    if (!isSavedCard && cleanNumber.length < 15) {
       Alert.alert('Tarjeta inválida', 'Por favor ingresa un número de tarjeta válido (mínimo 15 dígitos).');
       return false;
     }
@@ -56,11 +58,16 @@ export const useCheckout = () => {
     return true;
   };
 
-  const handleConfirmOrder = async (cart, currentUser, onSuccess) => {
+  const handleConfirmOrder = async (cart, currentUser, onSuccess, selectedAddress = null) => {
     if (!validatePayment()) return;
 
     if (!cart || cart.length === 0) {
       Alert.alert('Carrito vacío', 'No hay artículos en tu carrito para procesar.');
+      return;
+    }
+
+    if (!selectedAddress) {
+      Alert.alert('Dirección requerida', 'Por favor selecciona o agrega una dirección de entrega antes de finalizar la compra.');
       return;
     }
 
@@ -76,19 +83,28 @@ export const useCheckout = () => {
       const ultimos4 = cleanNumber.slice(-4);
       const marcaTarjeta = cleanNumber.startsWith('4') ? 'VISA' : 'MasterCard';
 
+      // Construcción de la dirección completa
+      const direccionCompleta = [
+        selectedAddress.direccion,
+        selectedAddress.colonia,
+        selectedAddress.ciudad,
+        selectedAddress.referencia ? `(Ref: ${selectedAddress.referencia})` : '',
+      ].filter(Boolean).join(', ');
+
       // ─── AVISO LEGAL Y DE SEGURIDAD (PCI-DSS) ─────────────────────────────────
       // El código CVV / CVC NUNCA se incluye en el payload enviado al backend ni se guarda en BD.
       const orderPayload = {
-        cliente: currentUser?._id || null,
-        clienteNombre: currentUser?.nombre
-          ? `${currentUser.nombre} ${currentUser.Apellido || currentUser.apellido || ''}`.trim()
-          : (currentUser?.name || 'Roberto Solorzano'),
+        cliente: currentUser?._id || currentUser?.id || null,
+        clienteNombre: selectedAddress.nombreDestinatario
+          || (currentUser?.nombre
+            ? `${currentUser.nombre} ${currentUser.Apellido || currentUser.apellido || ''}`.trim()
+            : (currentUser?.name || 'Cliente Trustphone')),
         clienteCorreo: currentUser?.correo || currentUser?.email || 'cliente@trustphone.com',
-        clienteTelefono: currentUser?.telefono || '7890-1234',
+        clienteTelefono: selectedAddress.telefono || currentUser?.telefono || '7890-1234',
         direccionEntrega: {
-          titulo: 'Colonia Escalón, San Salvador',
-          direccion: 'Avenida Masferrer Norte #340, San Salvador, El Salvador',
-          departamento: 'San Salvador',
+          titulo: selectedAddress.titulo || 'Dirección de Entrega',
+          direccion: direccionCompleta || 'San Salvador, El Salvador',
+          departamento: selectedAddress.departamento || 'San Salvador',
           tipoEnvio: 'Envío Express El Salvador',
         },
         articulos: cart.map((item) => ({

@@ -1,6 +1,5 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
-  SafeAreaView,
   View,
   Text,
   TextInput,
@@ -14,7 +13,11 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  BackHandler,
+  Modal,
+  StyleSheet,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 if (
   Platform.OS === 'android' &&
@@ -25,13 +28,17 @@ if (
 import { Ionicons } from '@expo/vector-icons';
 import { dashboardStyles as styles } from '../styles/dashboardStyles';
 import { colors } from '../styles/theme';
-import usePhones from '../hooks/usePhones';
+import usePhones, { getPhoneBrand } from '../hooks/usePhones';
 import ProfileScreen from './ProfileScreen';
 import PersonalInfoScreen from './PersonalInfoScreen';
 import CartScreen from './CartScreen';
 import CheckoutPaymentScreen from './CheckoutPaymentScreen';
 import CheckoutSuccessScreen from './CheckoutSuccessScreen';
 import OrdersScreen from './OrdersScreen';
+import AddressesScreen from './AddressesScreen';
+import AddressFormScreen from './AddressFormScreen';
+import PaymentMethodsScreen from './PaymentMethodsScreen';
+import PaymentMethodFormScreen from './PaymentMethodFormScreen';
 
 // ─── Colores por marca (dot en chip de filtro) ────────────────────────────────
 const BRAND_COLORS = {
@@ -44,6 +51,9 @@ const BRAND_COLORS = {
   oneplus: '#F5010C',
   sony: '#003087',
   lg: '#A50034',
+  oppo: '#118B50',
+  huawei: '#CF0A2C',
+  honor: '#00A4E4',
 };
 
 const getBrandColor = (brand = '') => {
@@ -83,7 +93,7 @@ const PhoneCard = ({ item, onAddToCart }) => {
   const [imgError, setImgError] = useState(false);
 
   const name = item.nombre || item.name || item.modelo || 'Sin nombre';
-  const brand = item.marca || item.brand || '';
+  const brand = getPhoneBrand(item) || item.marca || item.brand || '';
   const price = item.precio || item.price || 0;
   const imageUrl = item.imagen || item.image || item.foto || item.imageUrl || null;
   const condition = item.condicion || item.estado || item.condition || '';
@@ -150,8 +160,476 @@ const FilterChip = ({ label, active, onPress }) => {
   );
 };
 
+// ─── Componente Toast de Confirmación ─────────────────────────────────────────
+const CartToast = ({ message, onHide, onViewCart }) => {
+  if (!message) return null;
+
+  return (
+    <View style={styles.toastContainer}>
+      <View style={styles.toastCard}>
+        <View style={styles.toastIconCircle}>
+          <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+        </View>
+        <View style={styles.toastTextCol}>
+          <Text style={styles.toastTitle}>{message.title}</Text>
+          {message.subtitle ? (
+            <Text style={styles.toastSubtitle} numberOfLines={1}>
+              {message.subtitle}
+            </Text>
+          ) : null}
+        </View>
+        {onViewCart ? (
+          <TouchableOpacity style={styles.toastViewBtn} onPress={onViewCart} activeOpacity={0.8}>
+            <Text style={styles.toastViewBtnText}>Ver carrito</Text>
+          </TouchableOpacity>
+        ) : null}
+        <TouchableOpacity onPress={onHide} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Ionicons name="close" size={18} color="#94A3B8" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+// ─── Modal de Filtros Avanzados ───────────────────────────────────────────────
+const FilterModal = ({
+  visible,
+  onClose,
+  activeFilter,
+  setActiveFilter,
+  selectedCondition,
+  setSelectedCondition,
+  selectedStorage,
+  setSelectedStorage,
+  priceRange,
+  setPriceRange,
+  resetFilters,
+  totalResults,
+  brands,
+}) => {
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={onClose}
+    >
+      <View style={filterStyles.modalOverlay}>
+        <TouchableOpacity style={filterStyles.backdropTouch} activeOpacity={1} onPress={onClose} />
+        <View style={filterStyles.modalContent}>
+          {/* Header del Modal */}
+          <View style={filterStyles.modalHeader}>
+            <View>
+              <Text style={filterStyles.modalTitle}>Filtros</Text>
+              <Text style={filterStyles.modalSubtitle}>Encuentra el celular perfecto para ti</Text>
+            </View>
+            <TouchableOpacity style={filterStyles.closeBtn} onPress={onClose} activeOpacity={0.7}>
+              <Ionicons name="close" size={20} color={colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={filterStyles.modalScroll} showsVerticalScrollIndicator={false}>
+            {/* 1. Marcas */}
+            <Text style={filterStyles.sectionTitle}>Marca</Text>
+            <View style={filterStyles.chipRow}>
+              {brands.map((b) => {
+                const isSelected = activeFilter.toLowerCase() === b.toLowerCase();
+                return (
+                  <TouchableOpacity
+                    key={b}
+                    style={[filterStyles.chip, isSelected && filterStyles.chipActive]}
+                    onPress={() => setActiveFilter(b)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[filterStyles.chipText, isSelected && filterStyles.chipTextActive]}>
+                      {b}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* 2. Condición */}
+            <Text style={filterStyles.sectionTitle}>Condición</Text>
+            <View style={filterStyles.chipRow}>
+              {['Todas', 'Excelente', 'Bueno'].map((cond) => {
+                const isSelected = selectedCondition === cond;
+                return (
+                  <TouchableOpacity
+                    key={cond}
+                    style={[filterStyles.chip, isSelected && filterStyles.chipActive]}
+                    onPress={() => setSelectedCondition(cond)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[filterStyles.chipText, isSelected && filterStyles.chipTextActive]}>
+                      {cond}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* 3. Almacenamiento */}
+            <Text style={filterStyles.sectionTitle}>Almacenamiento</Text>
+            <View style={filterStyles.chipRow}>
+              {['Todos', '64GB', '128GB', '256GB', '512GB', '1TB'].map((stor) => {
+                const isSelected = selectedStorage === stor;
+                return (
+                  <TouchableOpacity
+                    key={stor}
+                    style={[filterStyles.chip, isSelected && filterStyles.chipActive]}
+                    onPress={() => setSelectedStorage(stor)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[filterStyles.chipText, isSelected && filterStyles.chipTextActive]}>
+                      {stor}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* 4. Rango de Precio */}
+            <Text style={filterStyles.sectionTitle}>Rango de Precio</Text>
+            <View style={filterStyles.chipRow}>
+              {[
+                { id: 'all', label: 'Todos' },
+                { id: 'under300', label: 'Menos de 300 €' },
+                { id: '300to800', label: '300 € - 800 €' },
+                { id: 'over800', label: 'Más de 800 €' },
+              ].map((p) => {
+                const isSelected = priceRange === p.id;
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[filterStyles.chip, isSelected && filterStyles.chipActive]}
+                    onPress={() => setPriceRange(p.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[filterStyles.chipText, isSelected && filterStyles.chipTextActive]}>
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={{ height: 20 }} />
+          </ScrollView>
+
+          {/* Footer de Acciones */}
+          <View style={filterStyles.modalFooter}>
+            <TouchableOpacity
+              style={filterStyles.resetBtn}
+              onPress={resetFilters}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh-outline" size={16} color={colors.textSecondary} />
+              <Text style={filterStyles.resetBtnText}>Limpiar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={filterStyles.applyBtn}
+              onPress={onClose}
+              activeOpacity={0.85}
+            >
+              <Text style={filterStyles.applyBtnText}>
+                Ver {totalResults} {totalResults === 1 ? 'celular' : 'celulares'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// ─── Modal de Ordenamiento ───────────────────────────────────────────────────
+const SortModal = ({ visible, onClose, sortBy, setSortBy }) => {
+  const options = [
+    { key: 'featured', label: 'Destacados', subtitle: 'Orden recomendado', icon: 'sparkles-outline' },
+    { key: 'priceAsc', label: 'Precio: Menor a Mayor', subtitle: 'De más económico a premium', icon: 'trending-up-outline' },
+    { key: 'priceDesc', label: 'Precio: Mayor a Menor', subtitle: 'De gama alta a más económico', icon: 'trending-down-outline' },
+    { key: 'nameAsc', label: 'Nombre: A - Z', subtitle: 'Orden alfabético', icon: 'text-outline' },
+  ];
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent={true}
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity
+        style={filterStyles.modalOverlayCenter}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <View style={filterStyles.sortCard} onStartShouldSetResponder={() => true}>
+          <View style={filterStyles.sortHeader}>
+            <Text style={filterStyles.sortTitle}>Ordenar Catálogo</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={filterStyles.sortOptions}>
+            {options.map((opt) => {
+              const selected = sortBy === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[filterStyles.sortOptionItem, selected && filterStyles.sortOptionItemSelected]}
+                  onPress={() => {
+                    setSortBy(opt.key);
+                    onClose();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[filterStyles.sortIconBox, selected && filterStyles.sortIconBoxSelected]}>
+                    <Ionicons
+                      name={opt.icon}
+                      size={18}
+                      color={selected ? '#FFFFFF' : colors.textSecondary}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[filterStyles.sortOptionLabel, selected && filterStyles.sortOptionLabelSelected]}>
+                      {opt.label}
+                    </Text>
+                    <Text style={filterStyles.sortOptionSub}>{opt.subtitle}</Text>
+                  </View>
+                  {selected && (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
+// ─── Estilos de Filtros y Modales ─────────────────────────────────────────────
+const filterStyles = StyleSheet.create({
+  btnActive: {
+    borderColor: colors.primary,
+    backgroundColor: '#EFF6FF',
+  },
+  btnTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  backdropTouch: {
+    flex: 1,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalScroll: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginTop: 14,
+    marginBottom: 10,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  chipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 12,
+  },
+  resetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  resetBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  applyBtn: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  applyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  // Modal Sort
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  sortCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  sortHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  sortTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  sortOptions: {
+    gap: 8,
+  },
+  sortOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 12,
+  },
+  sortOptionItemSelected: {
+    backgroundColor: '#EFF6FF',
+    borderColor: colors.primary,
+  },
+  sortIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sortIconBoxSelected: {
+    backgroundColor: colors.primary,
+  },
+  sortOptionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  sortOptionLabelSelected: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  sortOptionSub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+});
+
 // ─── Pantalla principal: DashboardScreen ─────────────────────────────────────
-const DashboardScreen = ({ currentUser, onLogout }) => {
+const DashboardScreen = ({ currentUser, onLogout, onUpdateUser }) => {
   const {
     filteredPhones,
     loading,
@@ -161,8 +639,21 @@ const DashboardScreen = ({ currentUser, onLogout }) => {
     setSearchQuery,
     activeFilter,
     setActiveFilter,
+    selectedCondition,
+    setSelectedCondition,
+    selectedStorage,
+    setSelectedStorage,
+    priceRange,
+    setPriceRange,
+    sortBy,
+    setSortBy,
+    resetFilters,
+    activeFiltersCount,
     filters,
   } = usePhones();
+
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showSortModal, setShowSortModal] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('inicio');
@@ -172,13 +663,70 @@ const DashboardScreen = ({ currentUser, onLogout }) => {
   // Estado del carrito y orden completada
   const [cart, setCart] = useState([]);
   const [completedOrder, setCompletedOrder] = useState(null);
+  const [selectedAddressForEdit, setSelectedAddressForEdit] = useState(null);
+  const [cartToast, setCartToast] = useState(null);
 
-  // Navegación con animación
-  const navigateWithAnimation = (screen, tab) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  // Auto-dismiss del toast tras 2.8 segundos
+  useEffect(() => {
+    if (cartToast) {
+      const timer = setTimeout(() => {
+        setCartToast(null);
+      }, 2800);
+      return () => clearTimeout(timer);
+    }
+  }, [cartToast]);
+
+  // Navegación con animación protegida
+  const navigateWithAnimation = (screen, tab, params = null) => {
+    try {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    } catch (e) {
+      // Ignorar fallo de animación si no está disponible
+    }
     if (screen) setCurrentScreen(screen);
     if (tab) setActiveTab(tab);
+    if (params && params.direccion !== undefined) {
+      setSelectedAddressForEdit(params.direccion);
+    }
   };
+
+  // Manejo del botón atrás físico y gestos de Android
+  useEffect(() => {
+    const onBackPress = () => {
+      if (currentScreen === 'paymentForm') {
+        navigateWithAnimation('paymentMethods', 'perfil');
+        return true;
+      }
+      if (currentScreen === 'paymentMethods') {
+        navigateWithAnimation('profile', 'perfil');
+        return true;
+      }
+      if (currentScreen === 'addressForm' || currentScreen === 'addressEdit') {
+        navigateWithAnimation('addresses', 'perfil');
+        return true;
+      }
+      if (currentScreen === 'addresses' || currentScreen === 'personalInfo') {
+        navigateWithAnimation('profile', 'perfil');
+        return true;
+      }
+      if (currentScreen === 'checkout') {
+        navigateWithAnimation('cart', 'carrito');
+        return true;
+      }
+      if (currentScreen === 'checkoutSuccess') {
+        navigateWithAnimation('catalog', 'inicio');
+        return true;
+      }
+      if (currentScreen === 'cart' || currentScreen === 'orders' || currentScreen === 'profile') {
+        navigateWithAnimation('catalog', 'inicio');
+        return true;
+      }
+      return false; // Permite salir de la app si está en el catálogo
+    };
+
+    const backSub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backSub.remove();
+  }, [currentScreen]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -200,8 +748,11 @@ const DashboardScreen = ({ currentUser, onLogout }) => {
       }
       return [...prevCart, { ...item, quantity: 1 }];
     });
-    // Opcional: Mostrar feedback o navegar
-    Alert.alert('Agregado', 'Producto añadido al carrito.');
+    const itemName = item.nombre || item.name || item.modelo || 'Celular Trustphone';
+    setCartToast({
+      title: '¡Añadido al carrito!',
+      subtitle: itemName,
+    });
   };
 
   const handleUpdateQuantity = (item, delta) => {
@@ -229,6 +780,13 @@ const DashboardScreen = ({ currentUser, onLogout }) => {
     <PhoneCard item={item} onAddToCart={handleAddToCart} />
   );
 
+  const SORT_LABELS = {
+    featured: 'Destacados',
+    priceAsc: 'Menor precio',
+    priceDesc: 'Mayor precio',
+    nameAsc: 'Nombre: A-Z',
+  };
+
   // ─── Header de la sección catálogo ────────────────────────────────────────
   const CatalogHeader = () => (
     <View style={styles.catalogHeader}>
@@ -239,13 +797,33 @@ const DashboardScreen = ({ currentUser, onLogout }) => {
         </Text>
       </View>
       <View style={styles.catalogActions}>
-        <TouchableOpacity style={styles.filterBtn} activeOpacity={0.7}>
-          <Ionicons name="options-outline" size={13} color={colors.textSecondary} />
-          <Text style={styles.filterBtnText}>Filtros</Text>
+        <TouchableOpacity
+          style={[styles.filterBtn, activeFiltersCount > 0 && filterStyles.btnActive]}
+          activeOpacity={0.7}
+          onPress={() => setShowFilterModal(true)}
+        >
+          <Ionicons
+            name="options-outline"
+            size={13}
+            color={activeFiltersCount > 0 ? colors.primary : colors.textSecondary}
+          />
+          <Text style={[styles.filterBtnText, activeFiltersCount > 0 && filterStyles.btnTextActive]}>
+            Filtros{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ''}
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.sortBtn} activeOpacity={0.7}>
-          <Text style={styles.sortBtnText}>Destacados</Text>
-          <Ionicons name="chevron-down" size={12} color={colors.textSecondary} />
+        <TouchableOpacity
+          style={[styles.sortBtn, sortBy !== 'featured' && filterStyles.btnActive]}
+          activeOpacity={0.7}
+          onPress={() => setShowSortModal(true)}
+        >
+          <Text style={[styles.sortBtnText, sortBy !== 'featured' && filterStyles.btnTextActive]}>
+            {SORT_LABELS[sortBy] || 'Destacados'}
+          </Text>
+          <Ionicons
+            name="chevron-down"
+            size={12}
+            color={sortBy !== 'featured' ? colors.primary : colors.textSecondary}
+          />
         </TouchableOpacity>
       </View>
     </View>
@@ -320,6 +898,58 @@ const DashboardScreen = ({ currentUser, onLogout }) => {
         <PersonalInfoScreen
           currentUser={currentUser}
           onBack={() => navigateWithAnimation('profile', 'perfil')}
+          onUpdateUser={onUpdateUser}
+        />
+      );
+    }
+
+    if (currentScreen === 'addresses') {
+      return (
+        <AddressesScreen
+          currentUser={currentUser}
+          onBack={() => navigateWithAnimation('profile', 'perfil')}
+          onNavigate={(screen, params) => {
+            if (screen === 'addressEdit') {
+              setSelectedAddressForEdit(params?.direccion || null);
+              navigateWithAnimation('addressEdit');
+            } else if (screen === 'addressForm') {
+              setSelectedAddressForEdit(null);
+              navigateWithAnimation('addressForm');
+            } else {
+              navigateWithAnimation(screen);
+            }
+          }}
+        />
+      );
+    }
+
+    if (currentScreen === 'addressForm' || currentScreen === 'addressEdit') {
+      return (
+        <AddressFormScreen
+          currentUser={currentUser}
+          editAddress={currentScreen === 'addressEdit' ? selectedAddressForEdit : null}
+          onBack={() => navigateWithAnimation('addresses')}
+          onSaveSuccess={() => navigateWithAnimation('addresses')}
+        />
+      );
+    }
+
+    if (currentScreen === 'paymentMethods') {
+      return (
+        <PaymentMethodsScreen
+          currentUser={currentUser}
+          onBack={() => navigateWithAnimation('profile', 'perfil')}
+          onNavigate={(screen) => navigateWithAnimation(screen)}
+        />
+      );
+    }
+
+    if (currentScreen === 'paymentForm') {
+      return (
+        <PaymentMethodFormScreen
+          currentUser={currentUser}
+          onBack={() => navigateWithAnimation('paymentMethods')}
+          onSaveSuccess={() => navigateWithAnimation('paymentMethods')}
         />
       );
     }
@@ -394,6 +1024,23 @@ const DashboardScreen = ({ currentUser, onLogout }) => {
             <View style={styles.centered}>
               <Ionicons name="search-outline" size={48} color="#CBD5E1" />
               <Text style={styles.emptyText}>No se encontraron celulares</Text>
+              {(activeFilter !== 'Todos' || activeFiltersCount > 0 || searchQuery.trim() !== '') && (
+                <TouchableOpacity
+                  style={{
+                    marginTop: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: 10,
+                    backgroundColor: colors.primary,
+                  }}
+                  onPress={resetFilters}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 13 }}>
+                    Restablecer Filtros
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
           refreshControl={
@@ -405,23 +1052,75 @@ const DashboardScreen = ({ currentUser, onLogout }) => {
           }
           showsVerticalScrollIndicator={false}
         />
+
+        {/* Modal de Filtros Avanzados */}
+        <FilterModal
+          visible={showFilterModal}
+          onClose={() => setShowFilterModal(false)}
+          activeFilter={activeFilter}
+          setActiveFilter={setActiveFilter}
+          selectedCondition={selectedCondition}
+          setSelectedCondition={setSelectedCondition}
+          selectedStorage={selectedStorage}
+          setSelectedStorage={setSelectedStorage}
+          priceRange={priceRange}
+          setPriceRange={setPriceRange}
+          resetFilters={resetFilters}
+          totalResults={filteredPhones.length}
+          brands={filters}
+        />
+
+        {/* Modal de Ordenamiento */}
+        <SortModal
+          visible={showSortModal}
+          onClose={() => setShowSortModal(false)}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+        />
       </View>
     );
   };
 
-  // ─── Vista principal con BottomTabBar persistente ─────────────────────────
+  // Ocultar barra inferior en pantallas de flujo completo (checkout, direcciones, pagos, formularios)
+  const HIDE_BOTTOM_TAB_SCREENS = [
+    'checkout',
+    'checkoutSuccess',
+    'addresses',
+    'addressForm',
+    'addressEdit',
+    'personalInfo',
+    'paymentMethods',
+    'paymentForm',
+  ];
+  const shouldShowTabBar = !HIDE_BOTTOM_TAB_SCREENS.includes(currentScreen);
+
+  // ─── Vista principal ────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={{ flex: 1 }}>
         {renderCurrentContent()}
       </View>
 
-      <BottomTabBar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onNavigate={(s, t) => navigateWithAnimation(s, t)}
-        cartCount={cartCount}
-      />
+      {/* Toast flotante de confirmación */}
+      {cartToast && (
+        <CartToast
+          message={cartToast}
+          onHide={() => setCartToast(null)}
+          onViewCart={() => {
+            setCartToast(null);
+            navigateWithAnimation('cart', 'carrito');
+          }}
+        />
+      )}
+
+      {shouldShowTabBar && (
+        <BottomTabBar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onNavigate={(s, t) => navigateWithAnimation(s, t)}
+          cartCount={cartCount}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -475,14 +1174,17 @@ const HeaderSection = ({
       style={styles.filtersScroll}
       contentContainerStyle={styles.filtersContent}
     >
-      {filters.map((f) => (
-        <FilterChip
-          key={f}
-          label={f}
-          active={activeFilter === f}
-          onPress={() => setActiveFilter(f)}
-        />
-      ))}
+      {filters.map((f) => {
+        const isSelected = activeFilter.toLowerCase() === f.toLowerCase();
+        return (
+          <FilterChip
+            key={f}
+            label={f}
+            active={isSelected}
+            onPress={() => setActiveFilter(isSelected && f !== 'Todos' ? 'Todos' : f)}
+          />
+        );
+      })}
     </ScrollView>
   </View>
 );

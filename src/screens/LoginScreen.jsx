@@ -25,6 +25,7 @@ export const LoginScreen = () => {
     toggleShowPassword,
     loading,
     currentUser,
+    updateCurrentUser,
     handleLogout,
     errors,
     focusedInput,
@@ -41,6 +42,7 @@ export const LoginScreen = () => {
       <DashboardScreen
         currentUser={currentUser}
         onLogout={handleLogout}
+        onUpdateUser={updateCurrentUser}
       />
     );
   }
