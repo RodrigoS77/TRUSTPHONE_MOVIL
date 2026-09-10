@@ -12,12 +12,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { cartStyles as styles } from '../styles/cartStyles';
 import { colors } from '../styles/theme';
 
-const CartScreen = ({ cart, onUpdateQuantity, onRemoveItem, onBack }) => {
+const CartScreen = ({ cart, onUpdateQuantity, onRemoveItem, onBack, onProceedToCheckout }) => {
   const subtotal = cart.reduce((sum, item) => sum + (item.precio || item.price || 0) * item.quantity, 0);
   const formattedSubtotal = subtotal.toLocaleString('es-ES', { minimumFractionDigits: 2 });
   
   const handleCheckout = () => {
-    Alert.alert('Compra en progreso', 'Funcionalidad de pago próximamente.', [{ text: 'OK' }]);
+    if (cart.length === 0) {
+      Alert.alert('Carrito vacío', 'Agrega algún producto antes de finalizar la compra.');
+      return;
+    }
+    if (onProceedToCheckout) {
+      onProceedToCheckout();
+    }
   };
 
   const renderItem = (cartItem) => {

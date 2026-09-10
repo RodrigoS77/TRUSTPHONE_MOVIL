@@ -29,6 +29,9 @@ import usePhones from '../hooks/usePhones';
 import ProfileScreen from './ProfileScreen';
 import PersonalInfoScreen from './PersonalInfoScreen';
 import CartScreen from './CartScreen';
+import CheckoutPaymentScreen from './CheckoutPaymentScreen';
+import CheckoutSuccessScreen from './CheckoutSuccessScreen';
+import OrdersScreen from './OrdersScreen';
 
 // ─── Colores por marca (dot en chip de filtro) ────────────────────────────────
 const BRAND_COLORS = {
@@ -166,8 +169,9 @@ const DashboardScreen = ({ currentUser, onLogout }) => {
   // Navegación interna: 'catalog' | 'profile' | 'personalInfo' | 'cart'
   const [currentScreen, setCurrentScreen] = useState('catalog');
 
-  // Estado del carrito
+  // Estado del carrito y orden completada
   const [cart, setCart] = useState([]);
+  const [completedOrder, setCompletedOrder] = useState(null);
 
   // Navegación con animación
   const navigateWithAnimation = (screen, tab) => {
@@ -256,6 +260,46 @@ const DashboardScreen = ({ currentUser, onLogout }) => {
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
           onBack={() => navigateWithAnimation('catalog', 'inicio')}
+          onProceedToCheckout={() => navigateWithAnimation('checkout', 'carrito')}
+        />
+      );
+    }
+
+    if (currentScreen === 'checkout') {
+      return (
+        <CheckoutPaymentScreen
+          cart={cart}
+          currentUser={currentUser}
+          onBack={() => navigateWithAnimation('cart', 'carrito')}
+          onSuccess={(order) => {
+            setCompletedOrder(order);
+            setCart([]); // Vaciamos el carrito tras compra exitosa
+            navigateWithAnimation('checkoutSuccess', 'carrito');
+          }}
+        />
+      );
+    }
+
+    if (currentScreen === 'checkoutSuccess') {
+      return (
+        <CheckoutSuccessScreen
+          order={completedOrder}
+          onGoToOrders={() => navigateWithAnimation('orders', 'pedidos')}
+          onContinueShopping={() => navigateWithAnimation('catalog', 'inicio')}
+        />
+      );
+    }
+
+    if (currentScreen === 'orders') {
+      return (
+        <OrdersScreen
+          currentUser={currentUser}
+          onBack={() => navigateWithAnimation('catalog', 'inicio')}
+          onExploreCatalog={() => navigateWithAnimation('catalog', 'inicio')}
+          onBuyAgain={(item) => {
+            handleAddToCart(item);
+            navigateWithAnimation('cart', 'carrito');
+          }}
         />
       );
     }
@@ -464,6 +508,8 @@ const BottomTabBar = ({ activeTab, setActiveTab, onNavigate, cartCount = 0 }) =>
               onNavigate('profile', 'perfil');
             } else if (tab.key === 'carrito') {
               onNavigate('cart', 'carrito');
+            } else if (tab.key === 'pedidos') {
+              onNavigate('orders', 'pedidos');
             } else if (tab.key === 'inicio') {
               onNavigate('catalog', 'inicio');
             } else {
