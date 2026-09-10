@@ -1,19 +1,16 @@
 import React from 'react';
-import { View, Text } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, Image } from 'react-native';
 import { loginStyles } from '../styles/loginStyles';
-import { colors } from '../styles/theme';
 
 export const HeaderLogo = () => {
   return (
     <View style={{ alignItems: 'center', width: '100%' }}>
-      {/* Brand Title */}
-      <Text style={loginStyles.appName}>TrustPhone</Text>
-
-      {/* Brand Icon Shield Squircle */}
-      <View style={loginStyles.iconBox}>
-        <Ionicons name="shield-checkmark" size={32} color={colors.background} />
-      </View>
+      {/* Logo de TrustPhone */}
+      <Image
+        source={require('../../assets/images/ChatGPT Image 10 sept 2026, 01_53_23 p.m..png')}
+        style={loginStyles.logoImage}
+        resizeMode="contain"
+      />
 
       {/* Welcome Title & Subtitle */}
       <Text style={loginStyles.title}>Bienvenido</Text>

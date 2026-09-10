@@ -33,15 +33,10 @@ export const loginStyles = StyleSheet.create({
     marginBottom: spacing.lg,
     letterSpacing: -0.3,
   },
-  iconBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-    ...shadows.button,
+  logoImage: {
+    width: 180,
+    height: 180,
+    marginBottom: spacing.md,
   },
   title: {
     fontSize: fontSize.xxl,

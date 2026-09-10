@@ -4,7 +4,7 @@
     "slug": "TrustPhone",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/ChatGPT Image 10 sept 2026, 01_53_23 p.m..png",
     "scheme": "trustphone",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -29,12 +29,15 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/ChatGPT Image 10 sept 2026, 01_53_23 p.m..png",
+          "imageWidth": 300,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#F8FAFC",
           "dark": {
-            "backgroundColor": "#000000"
+            "image": "./assets/images/ChatGPT Image 10 sept 2026, 01_53_23 p.m..png",
+            "imageWidth": 300,
+            "resizeMode": "contain",
+            "backgroundColor": "#1A202C"
           }
         }
       ],
