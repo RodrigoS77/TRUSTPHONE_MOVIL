@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  SafeAreaView,
   KeyboardAvoidingView,
   ScrollView,
   View,
@@ -8,12 +7,11 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRegisterForm } from '../hooks/useRegisterForm';
 import { HeaderRegisterLogo } from '../components/HeaderRegisterLogo';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
-import { Divider } from '../components/Divider';
-import { SocialButton } from '../components/SocialButton';
 import { loginStyles } from '../styles/loginStyles';
 
 export const RegisterScreen = () => {
@@ -137,25 +135,8 @@ export const RegisterScreen = () => {
               />
             </View>
 
-            {/* Divider */}
-            <Divider text="O REGÍSTRATE CON" />
-
-            {/* Social Logins: Google & Apple */}
-            <View style={loginStyles.socialRow}>
-              <SocialButton
-                title="Google"
-                provider="google"
-                onPress={() => handleSocialRegister('Google')}
-              />
-              <SocialButton
-                title="Apple"
-                provider="apple"
-                onPress={() => handleSocialRegister('Apple')}
-              />
-            </View>
-
             {/* Footer Login Link */}
-            <View style={loginStyles.footerRow}>
+            <View style={[loginStyles.footerRow, { marginTop: 24 }]}>
               <Text style={loginStyles.footerText}>¿Ya tienes una cuenta? </Text>
               <TouchableOpacity onPress={handleGoToLogin} activeOpacity={0.7}>
                 <Text style={loginStyles.footerLink}>Iniciar Sesión</Text>

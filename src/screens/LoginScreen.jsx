@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  SafeAreaView,
   KeyboardAvoidingView,
   ScrollView,
   View,
@@ -8,12 +7,11 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthForm } from '../hooks/useAuthForm';
 import { HeaderLogo } from '../components/HeaderLogo';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
-import { Divider } from '../components/Divider';
-import { SocialButton } from '../components/SocialButton';
 import { loginStyles } from '../styles/loginStyles';
 import DashboardScreen from './DashboardScreen';
 
@@ -109,25 +107,8 @@ export const LoginScreen = () => {
               />
             </View>
 
-            {/* Divisor */}
-            <Divider text="OR CONTINUE WITH" />
-
-            {/* Login social */}
-            <View style={loginStyles.socialRow}>
-              <SocialButton
-                title="Google"
-                provider="google"
-                onPress={() => handleSocialLogin('Google')}
-              />
-              <SocialButton
-                title="Apple"
-                provider="apple"
-                onPress={() => handleSocialLogin('Apple')}
-              />
-            </View>
-
             {/* Enlace a Registro */}
-            <View style={loginStyles.footerRow}>
+            <View style={[loginStyles.footerRow, { marginTop: 24 }]}>
               <Text style={loginStyles.footerText}>¿No tienes una cuenta? </Text>
               <TouchableOpacity onPress={handleSignUp} activeOpacity={0.7}>
                 <Text style={loginStyles.footerLink}>Regístrate</Text>
